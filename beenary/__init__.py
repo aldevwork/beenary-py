@@ -5,8 +5,8 @@ from __future__ import annotations
 import os
 from typing import Any, cast
 
-from beenary.transport import FileTransport
 from beenary.lens import AttrsView
+from beenary.transport import FileTransport
 
 
 def open_file(path: str | os.PathLike[str], schema: Any, mode: str = "r+b") -> AttrsView:

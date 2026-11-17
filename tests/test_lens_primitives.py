@@ -24,7 +24,6 @@ from beenary.lens import (
     Primitives,
 )
 from beenary.transport import MemoryTransport
-
 from tests.conftest import roundtrip_bytes
 
 NUMERIC_CASES = [

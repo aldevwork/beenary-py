@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import os
 import struct
-from collections.abc import Callable, Mapping
+from collections.abc import Mapping
 from typing import Any, cast
 
 from .errors import LensError
@@ -423,9 +423,6 @@ class AttrsView:
         struct = object.__getattribute__(self, "_struct")
         if target not in struct.fields:
             raise KeyError(target)
-        transport = object.__getattribute__(self, "_transport")
-        values = object.__getattribute__(self, "_values")
-        ends = object.__getattribute__(self, "_ends")
         cur = object.__getattribute__(self, "_start")
         for name, lens in struct.fields.items():
             if name == target:

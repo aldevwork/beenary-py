@@ -7,8 +7,7 @@ from pathlib import Path
 import pytest
 
 from beenary.errors import LensError
-from beenary.lens import Array, AttrsView, Bytes, Magic, Struct, U8, U16, U32
-from beenary.lens import view_ctx
+from beenary.lens import U8, U16, U32, Array, AttrsView, Bytes, Magic, Struct, view_ctx
 from beenary.transport import MemoryTransport
 
 SIMPLE_DATA = b"BEEN\x02\x34\x12"
@@ -99,9 +98,10 @@ class TestWriteThrough:
         assert transport.to_bytes() == b"\x09\x02"
 
     def test_assignment_raises_on_read_only_transport(self) -> None:
-        from beenary.transport import MmapTransport
-        import tempfile
         import os
+        import tempfile
+
+        from beenary.transport import MmapTransport
 
         fd, name = tempfile.mkstemp()
         os.write(fd, SIMPLE_DATA)

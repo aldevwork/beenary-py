@@ -5,11 +5,9 @@ from __future__ import annotations
 import pytest
 
 from beenary.errors import LensError
-from beenary.lens import Array, Bytes, Magic, Struct, U8, U16, U32, U64
+from beenary.lens import U8, U16, U32, Array, Bytes, Magic, Struct
 from beenary.transport import MemoryTransport
-
 from tests.conftest import roundtrip_bytes
-
 
 # --------------------------------------------------------------------------- #
 # Array

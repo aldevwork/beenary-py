@@ -8,7 +8,7 @@ import pytest
 
 from beenary import open_file
 from beenary.errors import LensError
-from beenary.lens import Array, AttrsView, Bytes, Magic, Struct, U8, U16, U32
+from beenary.lens import U8, U16, U32, Array, AttrsView, Bytes, Magic, Struct
 
 SCHEMA = Struct(
     header=Struct(magic=Magic(b"BEEN"), version=U8, flags=U16),
