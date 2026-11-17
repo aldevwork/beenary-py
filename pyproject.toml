@@ -1,0 +1,51 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "beenary"
+version = "0.1.0"
+description = "Bidirectional lenses, structural diffs, and protocol dialogues for binary files — without a DSL."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "YOUR NAME" }]
+keywords = ["binary", "lens", "diff", "protocol", "serialization"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Typing :: Typed",
+]
+dependencies = []
+
+[project.optional-dependencies]
+cli = ["typer>=0.9", "rich>=13"]
+dev = ["pytest>=7", "pytest-cov>=4", "mypy>=1.7", "ruff>=0.1"]
+
+[project.scripts]
+beenary = "beenary.cli:app"
+
+[project.entry-points."beenary.formats"]
+generic = "beenary.formats:GenericPlugin"
+png = "beenary.formats:PngPlugin"
+toy = "beenary.formats:ToyPlugin"
+
+[tool.hatch.build.targets.wheel]
+packages = ["beenary"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
