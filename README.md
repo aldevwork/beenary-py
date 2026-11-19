@@ -1,16 +1,45 @@
 # beenary.py
 
-beenary reads and writes binary files through lenses. A lens turns bytes at an offset into a Python value and writes that value back. Schemas are ordinary Python objects, so there is no schema language, parser generator, or generated code.
+> **All you need, diffs - bidirectional lenses, all in pure Python without any DSLs**
 
-Version 0.1.0 includes lenses, transports, live struct views, and saving. Structural diff and patch, format plugins, protocol dialogues, and the CLI are planned and not in this release. Their intended APIs are in [FUTURE.md](./FUTURE.md).
+**Beenary** is a library for working with binary files as if it's your second language. It lets you treat binary files as living structures in your python code.
+
+*Beenary reads and writes binary files through lenses. A lens turns bytes at an offset into a Python value and writes that value back. Schemas are ordinary Python objects, so there is no schema language, parser generator, or generated code.*
+
+*Version 0.1.0 includes lenses, transports, live struct views, and saving. Structural diff and patch, format plugins, protocol dialogues, and the CLI are planned and not in this release. Their intended APIs are in [FUTURE.md](./FUTURE.md).*
+
+## Why another binary library?
+
+Existing tools split into two camps:
+
+- **Declarative mappers** (`KonFoo`, `rombob`, `Kaitai Struct`) — great for
+  read-only parsing, awkward for writing and diffing.
+- **Hex editors** — precise but blind to structure.
+
+`beenary.py` fills the gap: **bidirectional by design**, **structural diff/patch**,
+and **pluggable format detection**, in a small pure-Python core.
+
+| Feature                    | beenary | KonFoo | Kaitai | construct |
+|----------------------------|:-------:|:------:|:------:|:---------:|
+| Read                       |    ✅   |   ✅   |   ✅   |    ✅     |
+| Write / round-trip         |    ✅   |   ~    |   ❌   |    ✅     |
+| Structural diff / patch    |    ✅   |   ❌   |   ❌   |    ❌     |
+| Plugin-based format sniff  |    ✅   |   ❌   |   ~    |    ❌     |
+| No DSL (plain Python)      |    ✅   |   ✅   |   ❌   |    ✅     |
+| Dialogue / stream mode     |    ✅   |   ❌   |   ❌   |    ~      |
+
 
 ## Design
 
-- A lens reads and writes. Round-trip tests cover both directions.
-- Schemas are plain Python objects. There is no schema language.
-- All byte access goes through a transport. Lenses do not open files or sockets.
-- Field assignment writes through to the open transport. Saving to a chosen path is always explicit.
-- Structural diff and patch will use field paths, not byte offsets. This is planned, not implemented.
+- **Bidirectional by design.** A lens reads and writes. Round-trip tests cover both directions.
+- **No DSLs.** Schemas are plain Python objects. There is no schema language.
+- **Transport-agnostic I/O.** All byte access goes through a transport. Lenses do not open files or sockets.
+- **No hidden save files.** Only explicit saving. Field assignment writes through to the open transport. Saving to a chosen path is always explicit.
+- **Structural over byte-level.** Structural diff and patch will use field paths, not byte offsets. This is planned, not implemented.
+
+## Creation
+
+Made with using AI, but reread, picked by hand and engineered by [aldevwork](https://github.com/aldevwork). All code was read, handpicked and checked by a human. And so the API, features and design principles are ALSO hand picked and perfected by a human.
 
 ## Install
 
@@ -64,6 +93,8 @@ See [examples/basic-file.py](./examples/basic-file.py) for a runnable version.
 Assigning to a struct field writes the new value through to the open transport immediately. `save` writes the complete struct from its current values to the given path and overwrites that file.
 
 `doc.items[0] = 7` changes the list returned by the array lens. The list is serialized on `save`, but mutating it does not update the transport at that moment. Nested structs return their own `AttrsView`, so `doc.header.version` reads and writes the same way as a top-level field.
+
+
 
 ## Lenses
 
@@ -122,9 +153,6 @@ These features are designed but not implemented in 0.1.0:
 
 See [FUTURE.md](./FUTURE.md) for the intended APIs, code sketches, and implementation order.
 
-## Creation
-
-Made with using AI, but reread, picked by hand and engineered by [aldevwork](https://github.com/aldevwork). All code was read, handpicked and checked by a human. All the API, features and design principles are hand picked by a human.
 
 ## License
 
