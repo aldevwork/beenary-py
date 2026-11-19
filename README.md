@@ -2,6 +2,10 @@
 
 > **All you need, diffs - bidirectional lenses, all in pure Python without any DSLs**
 
+[![CI](https://github.com/aldevwork/beenary-py/actions/workflows/ci.yml/badge.svg)](https://github.com/aldevwork/beenary-py/actions)
+[![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 **Beenary** is a library for working with binary files as if it's your second language. It lets you treat binary files as living structures in your python code.
 
 *Beenary reads and writes binary files through lenses. A lens turns bytes at an offset into a Python value and writes that value back. Schemas are ordinary Python objects, so there is no schema language, parser generator, or generated code.*
