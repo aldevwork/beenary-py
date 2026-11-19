@@ -47,7 +47,8 @@ class Transport(ABC):
     # Basic checks of a read function.
     def _check_read(self, offset: int, length: int) -> None:
         # TODO (@result): Add an option to return basic exceptions instead of raising them.
-        # Better when using type safe-ish Python's mypy. But unknowing API user could accidentally ignore the error, hence why only an option
+        # Better when using type safe-ish Python's mypy.
+        # But unknowing API user could accidentally ignore the error, hence why only an option
         # If we used Rust or something like that, we'd consider using Result<T, U>
         if offset < 0 or length < 0:
             raise LensError(f"negative offset/length ({offset}, {length})") # @result
@@ -219,7 +220,8 @@ class MockTransport(Transport, StreamSource, StreamSink):
     # --- StreamSource / StreamSink ---
     def read_stream(self, n: int) -> bytes:
         if n > len(self._incoming):
-            raise LensError(f"inbound buffer exhausted: wanted {n}, got {len(self._incoming)}") # @result
+            raise LensError(f"inbound buffer exhausted: wanted {n}, got {len(self._incoming)}")
+            # @result
         data = bytes(self._incoming[:n])
         del self._incoming[:n]
         return data

@@ -54,7 +54,8 @@ class Primitives:
     code = ""
     width = 0
 
-    def __init__(self, endian: str = "<") -> None: # TODO: Add enum for basic endianness for those non-tech-savvy people
+    def __init__(self, endian: str = "<") -> None:
+        # TODO: Add enum for basic endianness for those non-tech-savvy people
         if endian not in ("<", ">", "!"):
             raise ValueError("endian must be '<', '>' or '!'") # @result
         self.endian = endian
@@ -253,7 +254,8 @@ class Array:
         self.item = item
         self.count = count
         self.name = name
-        self.width: int | None = getattr(item, "width", None) # The `width` of one element. sizeof(arr[0]) if you please.
+        self.width: int | None = getattr(item, "width", None) 
+        # The `width` of one element. sizeof(arr[0]) if you please.
 
     def _label(self) -> str:
         return self.name or type(self.item).__name__
