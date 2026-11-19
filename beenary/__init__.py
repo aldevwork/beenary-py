@@ -16,6 +16,7 @@ def open_file(path: str | os.PathLike[str], schema: Any, mode: str = "r+b") -> A
         path: File to open for reading.
         schema: A lens (typically :class:`beenary.lens.Struct`) describing the
             layout.
+        mode: A mode with which to open a file
 
     Returns:
         The value produced by ``schema.read`` — an

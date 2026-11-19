@@ -43,18 +43,23 @@ class Transport(ABC):
     def write(self, offset: int, data: bytes) -> None:
         """Write ``data`` starting at ``offset``, extending if needed."""
 
+
+    # Basic checks of a read function.
     def _check_read(self, offset: int, length: int) -> None:
+        # TODO (@result): Add an option to return basic exceptions instead of raising them.
+        # Better when using type safe-ish Python's mypy. But unknowing API user could accidentally ignore the error, hence why only an option
+        # If we used Rust or something like that, we'd consider using Result<T, U>
         if offset < 0 or length < 0:
-            raise LensError(f"negative offset/length ({offset}, {length})")
+            raise LensError(f"negative offset/length ({offset}, {length})") # @result
         end = offset + length
         if end > self.size():
             raise LensError(
                 f"read of {length} bytes at offset {offset} exceeds size {self.size()}"
-            )
+            ) # @result
 
 
 class MemoryTransport(Transport):
-    """Transport backed by an in-memory ``bytearray``."""
+    """Transport backed by an in-memory ``bytearray`` type."""
 
     def __init__(self, data: bytes | bytearray = b"") -> None:
         self._buf = bytearray(data)
@@ -68,10 +73,10 @@ class MemoryTransport(Transport):
 
     def write(self, offset: int, data: bytes) -> None:
         if offset < 0:
-            raise LensError(f"negative offset {offset}")
+            raise LensError(f"negative offset {offset}") # @result
         end = offset + len(data)
         if end > len(self._buf):
-            self._buf.extend(b"\x00" * (end - len(self._buf)))
+            self._buf.extend(b"\x00" * (end - self.size()))
         self._buf[offset:end] = data
 
     def to_bytes(self) -> bytes:
@@ -83,7 +88,7 @@ class FileTransport(Transport):
     """Transport backed by an open binary file handle."""
 
     def __init__(self, fh: BinaryIO, *, writable: bool = False) -> None:
-        self._fh = fh
+        self._file_handle = fh
         self._writable = writable
 
     @classmethod
@@ -93,46 +98,46 @@ class FileTransport(Transport):
         return cls(fh, writable="+" in mode or "w" in mode or "a" in mode)
 
     def size(self) -> int:
-        cur = self._fh.tell()
-        self._fh.seek(0, io.SEEK_END)
-        end = self._fh.tell()
-        self._fh.seek(cur)
+        cur = self._file_handle.tell()
+        self._file_handle.seek(0, io.SEEK_END)
+        end = self._file_handle.tell()
+        self._file_handle.seek(cur)
         return end
 
     def read(self, offset: int, length: int) -> bytes:
         self._check_read(offset, length)
-        self._fh.seek(offset)
-        data = self._fh.read(length)
+        self._file_handle.seek(offset)
+        data = self._file_handle.read(length)
         if len(data) != length:
             raise LensError(
                 f"short read at offset {offset}: wanted {length}, got {len(data)}"
-            )
+            ) # @result
         return data
 
     def write(self, offset: int, data: bytes) -> None:
         if not self._writable:
-            raise LensError("transport is read-only")
-        self._fh.seek(offset)
-        self._fh.write(data)
-        self._fh.flush()
+            raise LensError("transport is read-only") # @result
+        self._file_handle.seek(offset)
+        self._file_handle.write(data)
+        self._file_handle.flush()
 
     def close(self) -> None:
-        self._fh.close()
+        self._file_handle.close()
 
 
 class MmapTransport(Transport):
     """Transport backed by a memory-mapped file (read-only)."""
 
     def __init__(self, path: str | os.PathLike[str]) -> None:
-        self._fh: BinaryIO = open(path, "rb")  # noqa: SIM115
-        self._size = os.fstat(self._fh.fileno()).st_size
+        self._file_handle: BinaryIO = open(path, "rb")  # noqa: SIM115 - lifetime owned by transport
+        self._size = os.fstat(self._file_handle.fileno()).st_size
         if self._size == 0:
             # Memory-mapping zero bytes is invalid, so back the empty view with
             # a one-byte anonymous map and report size 0. Reads stay blocked by
             # the bounds check.
             self._mmap = mmap.mmap(-1, 1)
         else:
-            self._mmap = mmap.mmap(self._fh.fileno(), 0, access=mmap.ACCESS_READ)
+            self._mmap = mmap.mmap(self._file_handle.fileno(), 0, access=mmap.ACCESS_READ)
 
     def size(self) -> int:
         return self._size
@@ -142,11 +147,11 @@ class MmapTransport(Transport):
         return bytes(self._mmap[offset : offset + length])
 
     def write(self, offset: int, data: bytes) -> None:
-        raise LensError("mmap transport is read-only")
+        raise LensError("mmap transport is read-only") # @result
 
     def close(self) -> None:
         self._mmap.close()
-        self._fh.close()
+        self._file_handle.close()
 
 
 class StreamSource(ABC):
@@ -174,7 +179,7 @@ class BytesIOSource(StreamSource):
     def read_stream(self, n: int) -> bytes:
         data = self._buf.read(n)
         if len(data) != n:
-            raise LensError(f"stream exhausted: wanted {n}, got {len(data)}")
+            raise LensError(f"stream exhausted: wanted {n}, got {len(data)}") # @result
         return data
 
 
@@ -214,7 +219,7 @@ class MockTransport(Transport, StreamSource, StreamSink):
     # --- StreamSource / StreamSink ---
     def read_stream(self, n: int) -> bytes:
         if n > len(self._incoming):
-            raise LensError(f"inbound buffer exhausted: wanted {n}, got {len(self._incoming)}")
+            raise LensError(f"inbound buffer exhausted: wanted {n}, got {len(self._incoming)}") # @result
         data = bytes(self._incoming[:n])
         del self._incoming[:n]
         return data

@@ -35,9 +35,12 @@ def _instantiate_primitive(spec: Any) -> Any:
     :class:`Array`; instantiating them here keeps that spelling working while
     still allowing configured instances such as ``U32(endian='>')``.
     """
-    if isinstance(spec, type) and hasattr(spec, "read") and hasattr(spec, "write"):
+    if isinstance(spec, type) and _is_lens(spec):
         return spec()
     return spec
+
+def _is_lens(a: Any) -> bool:
+    return hasattr(a, "read") and hasattr(a, "write")
 
 
 # --------------------------------------------------------------------------- #
@@ -51,9 +54,9 @@ class Primitives:
     code = ""
     width = 0
 
-    def __init__(self, endian: str = "<") -> None:
+    def __init__(self, endian: str = "<") -> None: # TODO: Add enum for basic endianness for those non-tech-savvy people
         if endian not in ("<", ">", "!"):
-            raise ValueError("endian must be '<', '>' or '!'")
+            raise ValueError("endian must be '<', '>' or '!'") # @result
         self.endian = endian
         self._fmt = endian + self.code
         self.width = struct.calcsize(self._fmt)
@@ -65,7 +68,7 @@ class Primitives:
         try:
             raw = transport.read(offset, self.width)
         except LensError as exc:
-            raise LensError(exc.message, _path(ctx)) from exc
+            raise LensError(exc.message, _path(ctx)) from exc # @result
         (value,) = struct.unpack(self._fmt, raw)
         return value, offset + self.width
 
@@ -75,7 +78,7 @@ class Primitives:
         except struct.error as exc:
             raise LensError(
                 f"cannot pack {value!r} as {self._fmt}: {exc}", _path(ctx)
-            ) from exc
+            ) from exc # @result
         transport.write(offset, raw)
         return offset + self.width
 
@@ -104,7 +107,7 @@ class I8(Primitives):
 
 
 class I16(Primitives):
-    code = "h"
+    code = "h" # As in halfword, from printf, scanf in C. Not just python-specific.
 
 
 class I32(Primitives):
@@ -128,7 +131,7 @@ class Magic:
 
     def __init__(self, sentinel: bytes) -> None:
         if not isinstance(sentinel, (bytes, bytearray)):
-            raise TypeError("sentinel must be bytes")
+            raise TypeError("sentinel must be bytes") # @result
         self.sentinel = bytes(sentinel)
         self.width = len(self.sentinel)
 
@@ -139,18 +142,18 @@ class Magic:
         try:
             raw = transport.read(offset, self.width)
         except LensError as exc:
-            raise LensError(exc.message, _path(ctx)) from exc
+            raise LensError(exc.message, _path(ctx)) from exc # @result
         if raw != self.sentinel:
             raise LensError(
                 f"magic mismatch: expected {self.sentinel!r}, got {raw!r}", _path(ctx)
-            )
+            ) # @result 
         return raw, offset + self.width
 
     def write(self, transport: Transport, offset: int, value: Any, ctx: Ctx = None) -> int:
         if value not in (None, self.sentinel):
             raise LensError(
                 f"magic write value must be {self.sentinel!r}, got {value!r}", _path(ctx)
-            )
+            ) # @result
         transport.write(offset, self.sentinel)
         return offset + self.width
 
@@ -172,21 +175,21 @@ class Bytes:
         try:
             data = transport.read(offset, self.length)
         except LensError as exc:
-            raise LensError(exc.message, _path(ctx)) from exc
+            raise LensError(exc.message, _path(ctx)) from exc # @result
         return data, offset + self.length
 
     def write(self, transport: Transport, offset: int, value: Any, ctx: Ctx = None) -> int:
         if not isinstance(value, (bytes, bytearray)):
-            raise LensError(f"expected bytes, got {type(value).__name__}", _path(ctx))
+            raise LensError(f"expected bytes, got {type(value).__name__}", _path(ctx)) # @result
         if len(value) != self.length:
-            raise LensError(f"expected {self.length} bytes, got {len(value)}", _path(ctx))
+            raise LensError(f"expected {self.length} bytes, got {len(value)}", _path(ctx)) # @result
         transport.write(offset, bytes(value))
         return offset + self.length
 
     def __repr__(self) -> str:
         return f"Bytes({self.length})"
 
-
+# Seemingly only used in tests. No user code for now.
 class Padding:
     """A fixed number of pad bytes; filled with ``fill_byte`` on write."""
 
@@ -202,7 +205,7 @@ class Padding:
         try:
             data = transport.read(offset, self.length)
         except LensError as exc:
-            raise LensError(exc.message, _path(ctx)) from exc
+            raise LensError(exc.message, _path(ctx)) from exc # @result 
         return data, offset + self.length
 
     def write(self, transport: Transport, offset: int, value: Any, ctx: Ctx = None) -> int:
@@ -226,7 +229,7 @@ class Array:
     - an ``int`` — fixed number of elements;
     - a ``callable(ctx) -> int`` — resolved against the surrounding context;
     - ``None`` — read to the end of the transport (only valid for fixed-width
-      items).
+        items).
 
     Examples:
         Array(U32, count=lambda ctx: ctx.count)
@@ -241,16 +244,16 @@ class Array:
         name: str | None = None,
     ) -> None:
         item = _instantiate_primitive(item)
-        if not (hasattr(item, "read") and hasattr(item, "write")):
-            raise TypeError("Array item must be a Lens (implement read/write)")
+        if not _is_lens(item):
+            raise TypeError("Array item must be a Lens (implement read/write)") # @result
         if count is not None and not isinstance(count, int) and not callable(count):
-            raise TypeError("count must be an int, a callable(ctx)->int, or None")
+            raise TypeError("count must be an int, a callable(ctx)->int, or None") # @result
         if isinstance(count, int) and count < 0:
-            raise ValueError("count must be non-negative")
+            raise ValueError("count must be non-negative") # @result
         self.item = item
         self.count = count
         self.name = name
-        self.width: int | None = getattr(item, "width", None)
+        self.width: int | None = getattr(item, "width", None) # The `width` of one element. sizeof(arr[0]) if you please.
 
     def _label(self) -> str:
         return self.name or type(self.item).__name__
@@ -273,30 +276,30 @@ class Array:
                 raise LensError(
                     f"Array({self._label()}) has variable-width items and no count",
                     path=self._path(),
-                )
+                ) # @result
             remaining = transport.size() - offset
             if remaining < 0 or remaining % self.width != 0:
                 raise LensError(
                     f"Array({self._label()}) has {remaining} trailing bytes that "
                     f"do not align to item width {self.width}",
                     path=self._path(),
-                )
+                ) # @result
             return remaining // self.width
         if callable(self.count):
             try:
                 n = self.count(ctx)
             except LensError:
-                raise
+                raise # @result
             except Exception as exc:  # noqa: BLE001 - re-wrap with path context
                 raise LensError(
                     f"Array({self._label()}) count lambda failed: {exc}",
                     path=self._path(),
-                ) from exc
+                ) from exc # @result
             if not isinstance(n, int) or isinstance(n, bool) or n < 0:
                 raise LensError(
                     f"Array({self._label()}) count returned {n!r}, expected int >= 0",
                     path=self._path(),
-                )
+                ) # @result
             return n
         return cast(int, self.count)
 
@@ -307,7 +310,7 @@ class Array:
             try:
                 value, offset = self.item.read(transport, offset, ctx)
             except LensError as exc:
-                raise LensError(exc.message, path=self._path(i)) from exc
+                raise LensError(exc.message, path=self._path(i)) from exc # @result
             out.append(value)
         return out, offset
 
@@ -321,12 +324,12 @@ class Array:
             raise LensError(
                 f"Array({self._label()}) expected {expected} elements, got {len(value)}",
                 path=self._path(),
-            )
+            ) # @result
         for i, element in enumerate(value):
             try:
                 offset = self.item.write(transport, offset, element, ctx)
             except LensError as exc:
-                raise LensError(exc.message, path=self._path(i)) from exc
+                raise LensError(exc.message, path=self._path(i)) from exc # @result
         return offset
 
     def __repr__(self) -> str:
@@ -345,10 +348,11 @@ class Struct:
             name: _instantiate_primitive(lens) for name, lens in fields.items()
         }
         for name, lens in normalized.items():
-            if not (hasattr(lens, "read") and hasattr(lens, "write")):
-                raise TypeError(f"field {name!r} is not a Lens")
+            if not _is_lens(lens):
+                raise TypeError(f"field {name!r} is not a Lens") # @result
         self.fields = normalized
 
+    # Returns None if there's any variadic length Attrs
     def size(self, ctx: Ctx = None) -> int | None:
         total = 0
         for lens in self.fields.values():
@@ -365,7 +369,7 @@ class Struct:
             try:
                 value, cur = lens.read(transport, cur, view)
             except LensError as exc:
-                raise LensError(exc.message, _path(ctx) + (name,)) from exc
+                raise LensError(exc.message, _path(ctx) + (name,)) from exc # @result
             view._store(name, value, cur)
         view._end = cur
         return view, cur
@@ -376,7 +380,7 @@ class Struct:
             try:
                 field_value = value[name]
             except (KeyError, TypeError) as exc:
-                raise LensError(f"missing field {name!r}", _path(ctx) + (name,)) from exc
+                raise LensError(f"missing field {name!r}", _path(ctx) + (name,)) from exc # @result
             cur = lens.write(transport, cur, field_value, view_ctx(value, ctx))
         return cur
 
@@ -422,13 +426,13 @@ class AttrsView:
     def _locate(self, target: str) -> tuple[Any, int]:
         struct = object.__getattribute__(self, "_struct")
         if target not in struct.fields:
-            raise KeyError(target)
+            raise KeyError(target) # @result
         cur = object.__getattribute__(self, "_start")
         for name, lens in struct.fields.items():
             if name == target:
                 return lens, cur
             cur = self._advance(name, lens, cur)
-        raise KeyError(target)  # pragma: no cover
+        raise KeyError(target)  # pragma: no cover # @result
 
     def _advance(self, name: str, lens: Any, offset: int) -> int:
         values = object.__getattribute__(self, "_values")
@@ -448,10 +452,10 @@ class AttrsView:
     # -- attribute / item access ------------------------------------------- #
     def __getattr__(self, name: str) -> Any:
         if name.startswith("_"):
-            raise AttributeError(name)
+            raise AttributeError(name) # @result
         struct = object.__getattribute__(self, "_struct")
         if name not in struct.fields:
-            raise AttributeError(f"{name!r} is not a field of this struct")
+            raise AttributeError(f"{name!r} is not a field of this struct") # @result
         values = object.__getattribute__(self, "_values")
         if name in values:
             return values[name]
@@ -467,7 +471,7 @@ class AttrsView:
             return
         struct = object.__getattribute__(self, "_struct")
         if name not in struct.fields:
-            raise AttributeError(f"{name!r} is not a field of this struct")
+            raise AttributeError(f"{name!r} is not a field of this struct") # @result
         lens, offset = self._locate(name)
         transport = object.__getattribute__(self, "_transport")
         nxt = lens.write(transport, offset, value, self)
@@ -534,7 +538,7 @@ class _MappingCtx:
         try:
             return self._mapping[name]
         except KeyError:
-            raise AttributeError(name) from None
+            raise AttributeError(name) from None # @result
 
 
 def view_ctx(value: Any, ctx: Ctx) -> Ctx:
