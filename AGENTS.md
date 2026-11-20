@@ -11,6 +11,14 @@ plugins, and a stream-based dialogue simulator for protocol testing.
 **Not** a DSL. **Not** a schema language. **Not** a parser generator.
 Schemas are ordinary Python objects; format plugins are ordinary Python classes.
 
+## Code looks
+
+The code's ABI for users of the library shall be easily-usable, scalable and with use of
+all heavily cited known principles of writing good and scaleable Python code.
+All the code shall be reviewed by a human being, so make it readable and easy to understand.
+Do not waste tokens and after every prompt of a human always show the diffs and write a small
+review about what you have changed
+
 ## Non-negotiable invariants
 
 1. **Bidirectional lenses.** Every `Lens` must read *and* write. A round-trip
@@ -95,12 +103,12 @@ When asked to add a feature:
 
 ## Definition of done (v0.1)
 
-- [ ] `Transport` + `MemoryTransport`, `FileTransport`, `MmapTransport`, `MockTransport`
-- [ ] Primitives: `U8..U64`, `I8..I64`, `F32/F64`, `Bytes`, `CString`, `Magic`, `Padding`
+- [x] `Transport` + `MemoryTransport`, `FileTransport`, `MmapTransport`, `MockTransport`
+- [x] Primitives: `U8..U64`, `I8..I64`, `F32/F64`, `Bytes`, `CString`, `Magic`, `Padding`
 - [ ] Composites: `Struct`, `Array`, `Optional`, `Switch`
 - [ ] `AttrsView` with attribute + item access, write-through
-- [ ] `diff` / `Patch` / `apply` / `preview` with JSON serialization
-- [ ] `FormatPlugin` ABC + registry + `sniff()` + 2 example plugins
+- [x] `diff` / `Patch` / `apply` / `preview` with JSON serialization
+- [x] `FormatPlugin` ABC + registry + `sniff()` + built-in `generic`, `png`, `toy`, `wav` plugins
 - [ ] `Dialogue` + `MockTransport` with preload/inspect
 - [ ] CLI: `beenary sniff|inspect|diff|patch`
 - [ ] Full test suite green, mypy --strict clean
@@ -110,4 +118,4 @@ When asked to add a feature:
 ## When in doubt
 
 Ask. Especially if a task seems to require a new DSL, a new file format, or a
-new grammar — that's a signal the task is out of scope for this library.
+new grammar — that's a signal the task is out of scope for this library

@@ -16,9 +16,11 @@ extents come from the lens's ``read`` return value, never from guessed sizes.
 
 from __future__ import annotations
 
+import copy
 import os
 import struct
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
+from types import TracebackType
 from typing import Any, cast
 
 from .errors import LensError
@@ -353,6 +355,27 @@ class Struct:
             if not _is_lens(lens):
                 raise TypeError(f"field {name!r} is not a Lens") # @result
         self.fields = normalized
+        self._default_factory: Callable[[], Any] | None = None
+
+    def new(self) -> AttrsView:
+        """Build a fresh, writable view from this struct's default factory.
+
+        The default is written to an in-memory transport and read back, so the
+        result has the same live :class:`AttrsView` behavior as ``read``.
+
+        Raises:
+            ValueError: If the struct has no default. Wrap it with
+                :func:`with_default` first.
+        """
+        factory = self._default_factory
+        if factory is None:
+            raise ValueError(
+                "struct has no default; wrap it with with_default(struct, factory)"
+            )
+        transport = MemoryTransport()
+        self.write(transport, 0, factory())
+        value, _ = self.read(transport, 0)
+        return value
 
     # Returns None if there's any variadic length Attrs
     def size(self, ctx: Ctx = None) -> int | None:
@@ -389,6 +412,29 @@ class Struct:
     def __repr__(self) -> str:
         inner = ", ".join(f"{k}={v!r}" for k, v in self.fields.items())
         return f"Struct({inner})"
+
+
+def with_default(schema: Struct, factory: Callable[[], Any]) -> Struct:
+    """Return a copy of ``schema`` with a default-value factory attached.
+
+    The factory returns a mapping accepted by :meth:`Struct.write`; it is called
+    afresh for every :meth:`Struct.new`. Keeping the default on the struct, not
+    in its constructor, leaves field names such as ``default`` free for schemas.
+
+    Args:
+        schema: Struct to give a default value.
+        factory: Zero-argument callable returning the default field mapping.
+
+    Returns:
+        A shallow copy of ``schema`` that remembers ``factory``.
+    """
+    if not isinstance(schema, Struct):
+        raise TypeError("with_default expects a Struct")
+    if not callable(factory):
+        raise TypeError("default factory must be callable")
+    clone = copy.copy(schema)
+    clone._default_factory = factory
+    return clone
 
 
 # --------------------------------------------------------------------------- #
@@ -484,6 +530,21 @@ class AttrsView:
 
     def __setitem__(self, name: str, value: Any) -> None:
         setattr(self, name, value)
+
+    def close(self) -> None:
+        """Close the backing transport, if it holds a resource."""
+        object.__getattribute__(self, "_transport").close()
+
+    def __enter__(self) -> AttrsView:
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
+    ) -> None:
+        self.close()
 
     def save(self, file_name: str | os.PathLike[str]) -> None:
         """Serialize this struct and write it to ``file_name``.

@@ -31,6 +31,7 @@ beenary = "beenary.cli:app"
 generic = "beenary.formats:GenericPlugin"
 png = "beenary.formats:PngPlugin"
 toy = "beenary.formats:ToyPlugin"
+wav = "beenary.formats:WavPlugin"
 
 [tool.hatch.build.targets.wheel]
 packages = ["beenary"]

@@ -9,6 +9,7 @@ import pytest
 from beenary import open_file
 from beenary.errors import LensError
 from beenary.lens import U8, U16, U32, Array, AttrsView, Bytes, Magic, Struct
+from beenary.transport import MemoryTransport
 
 SCHEMA = Struct(
     header=Struct(magic=Magic(b"BEEN"), version=U8, flags=U16),
@@ -68,6 +69,26 @@ def test_read_only_mode_rejects_write_through(tmp_path: Path) -> None:
     doc = open_file(path, SCHEMA, mode="rb")
     with pytest.raises(LensError, match="read-only"):
         doc.header.version = 9
+
+
+def test_context_manager_closes_transport() -> None:
+    class ClosingTransport(MemoryTransport):
+        closed = False
+
+        def close(self) -> None:
+            self.closed = True
+
+    transport = ClosingTransport()
+    with AttrsView(transport, SCHEMA, 0) as doc:
+        assert isinstance(doc, AttrsView)
+    assert transport.closed
+
+
+def test_write_only_mode_is_rejected_without_truncating(tmp_path: Path) -> None:
+    path = write_sample(tmp_path)
+    with pytest.raises(ValueError, match="needs a read mode"):
+        open_file(path, SCHEMA, mode="wb")
+    assert path.read_bytes() == DATA
 
 
 def test_write_through_then_save_roundtrip(tmp_path: Path) -> None:

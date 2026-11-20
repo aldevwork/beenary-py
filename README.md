@@ -10,7 +10,7 @@
 
 *Beenary reads and writes binary files through lenses. A lens turns bytes at an offset into a Python value and writes that value back. Schemas are ordinary Python objects, so there is no schema language, parser generator, or generated code.*
 
-*Version 0.1.0 includes lenses, transports, live struct views, and saving. Structural diff and patch, format plugins, protocol dialogues, and the CLI are planned and not in this release. Their intended APIs are in [FUTURE.md](./FUTURE.md).*
+*Version 0.1.0 includes lenses, transports, live struct views, saving, structural diff and patch, and format plugins. Protocol dialogues and the CLI are planned and not in this release. Their intended APIs are in [FUTURE.md](./FUTURE.md).*
 
 ## Why another binary library?
 
@@ -39,7 +39,7 @@ and **pluggable format detection**, in a small pure-Python core.
 - **No DSLs.** Schemas are plain Python objects. There is no schema language.
 - **Transport-agnostic I/O.** All byte access goes through a transport. Lenses do not open files or sockets.
 - **No hidden save files.** Only explicit saving. Field assignment writes through to the open transport. Saving to a chosen path is always explicit.
-- **Structural over byte-level.** Structural diff and patch will use field paths, not byte offsets. This is planned, not implemented.
+- **Structural over byte-level.** Diff and patch use field paths, not byte offsets.
 
 ## Creation
 
@@ -76,7 +76,9 @@ Schema = Struct(
 
 `Array(U32, count=lambda ctx: ctx.count)` reads its element count from the `count` field read before it. `count` can also be an int, or `None` to read items until the transport ends.
 
-`open_file` opens files in `r+b` mode by default. Pass `mode="rb"` when the file must stay read-only.
+`open_file` opens files in `r+b` mode by default. Pass `mode="rb"` when the file must stay read-only. It always reads an existing file, so write-only modes such as `"wb"` are rejected before they can truncate anything. To create a new file, use `schema_save_to_file`.
+
+Omit the schema to let a format plugin describe the file: `open_file("sound.wav")`.
 
 ## Read, edit, save
 
@@ -98,6 +100,107 @@ Assigning to a struct field writes the new value through to the open transport i
 
 `doc.items[0] = 7` changes the list returned by the array lens. The list is serialized on `save`, but mutating it does not update the transport at that moment. Nested structs return their own `AttrsView`, so `doc.header.version` reads and writes the same way as a top-level field.
 
+## Create a file
+
+`schema_save_to_file` is the explicit-save counterpart to `open_file`. It creates or overwrites the destination:
+
+```python
+from beenary import schema_save_to_file
+
+schema_save_to_file(Schema, {
+    "header": {"magic": b"BEEN", "version": 1, "flags": 0},
+    "count": 2,
+    "items": [1, 2],
+    "trailer": b"\0\0\0\0",
+}, "sample.bin")
+```
+
+`schema_write` does the same into any transport at an optional offset and returns the offset after the struct.
+
+A struct can carry a default value. The factory runs on every `new()` call, so each view starts fresh:
+
+```python
+from beenary import schema_save_to_file, with_default
+
+V1 = with_default(Schema, lambda: {
+    "header": {"magic": b"BEEN", "version": 1, "flags": 0},
+    "count": 2,
+    "items": [1, 2],
+    "trailer": b"\0\0\0\0",
+})
+
+doc = V1.new()
+schema_save_to_file(V1, None, "sample.bin")
+```
+
+The default lives outside the `Struct(...)` constructor. A schema can still have a field named `default`.
+
+## Diff and patch
+
+```python
+from beenary import apply_patch, diff, preview
+
+a = open_file("v1.bin", schema=Schema)
+b = open_file("v2.bin", schema=Schema)
+
+patch = diff(a, b)
+print(preview(patch))
+# header.version: 1 -> 2
+# items[1]: 2 -> 9
+
+patch.save("update.json")
+apply_patch(a, patch)
+a.save("v2_from_patch.bin")
+```
+
+`diff` walks fields in schema order and list elements in index order, so identical inputs produce identical patches. A patch stores `old` and `new` values and refuses to apply when the document no longer matches `old`. `Patch.save` writes versioned JSON; `Patch.load` reads it back. Values containing bytes are base64-encoded.
+
+See [examples/basic-diff.py](./examples/basic-diff.py); run it with `python -m examples.basic-diff`.
+
+
+## Format plugins
+
+`sniff` scores every registered plugin against a path or transport. Scores run from `0.0` to `1.0`, highest first. `generic` is the fallback at `0.01`.
+
+```python
+from beenary import open_file, sniff
+
+print(sniff("sound.wav"))
+# [('wav', 0.99), ('generic', 0.01)]
+
+doc = open_file("sound.wav")       # no schema: use the detected plugin
+print(doc.chunks[0].id)            # b'fmt '
+print(doc.chunks[-1].data[:4])
+```
+
+Built-in plugins are `generic`, `png`, `toy`, and `wav`. The WAV plugin keeps every RIFF chunk in file order, including unknown chunks and odd-size padding. `WavPlugin.audio_info(doc)` decodes the `fmt ` chunk into channels, sample rate, bit depth, and the extensible-header fields. See [examples/wav.py](./examples/wav.py) for a runnable version using `examples/a.wav`; run it with `python -m examples.wav`.
+
+A plugin is one class. Put it in one module, then register it with an entry point:
+
+```python
+# mypkg/toy.py
+from beenary.formats import FormatPlugin
+from beenary.lens import Magic, Struct, U16, U32
+
+class ToyPlugin(FormatPlugin):
+    name = "toy"
+    schema_id = "mypkg.toy"
+
+    def sniff(self, transport):
+        if transport.size() < 4:
+            return 0.0
+        return 1.0 if transport.read(0, 4) == b"TOY1" else 0.0
+
+    def schema(self):
+        return Struct(magic=Magic(b"TOY1"), version=U16, payload=U32)
+```
+
+```toml
+[project.entry-points."beenary.formats"]
+toy = "mypkg.toy:ToyPlugin"
+```
+
+For a local plugin, skip the entry point and call `register_plugin(ToyPlugin())`. Entry points load lazily on the first `sniff`, `detect`, `plugins`, or `get_plugin` call. A plugin that raises during sniffing is logged and skipped, so one broken package cannot break detection for the rest.
 
 
 ## Lenses
@@ -148,8 +251,6 @@ CI runs the test suite on Python 3.11, 3.12, and 3.13, then runs `mypy` and `ruf
 
 These features are designed but not implemented in 0.1.0:
 
-- Structural diff and patch with a JSON patch format
-- Format detection and plugins with magic-byte sniffing
 - Protocol dialogues over streams and sockets
 - CLI commands for inspect, diff, and patch
 - NumPy views for large numeric arrays

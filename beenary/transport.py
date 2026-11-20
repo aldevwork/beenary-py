@@ -43,6 +43,12 @@ class Transport(ABC):
     def write(self, offset: int, data: bytes) -> None:
         """Write ``data`` starting at ``offset``, extending if needed."""
 
+    def close(self) -> None:  # noqa: B027 - optional hook, no cleanup for memory
+        """Release any resources held by the transport.
+
+        In-memory transports keep their bytes; file-backed transports close
+        their handle.
+        """
 
     # Basic checks of a read function.
     def _check_read(self, offset: int, length: int) -> None:
