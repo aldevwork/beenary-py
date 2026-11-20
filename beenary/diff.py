@@ -71,7 +71,7 @@ class Patch:
             raise PatchError(
                 f"unsupported patch format version {version!r}; "
                 f"expected {PATCH_FORMAT_VERSION}"
-            )
+            ) # @result
         schema_id = data.get("schema_id")
         if not isinstance(schema_id, str):
             raise PatchError("patch schema_id must be a string")  # @result
@@ -163,7 +163,7 @@ def apply_patch(doc: AttrsView, patch: Patch) -> AttrsView:
     fails without leaving a half-applied document.
     """
     if not isinstance(doc, AttrsView):
-        raise TypeError("apply_patch expects an AttrsView document")
+        raise TypeError("apply_patch expects an AttrsView document") # @result
     doc_schema = _doc_schema_id(doc)
     if patch.schema_id != doc_schema:
         raise PatchError(
@@ -245,6 +245,7 @@ def _get_path(doc: AttrsView, path: tuple[str | int, ...]) -> Any:
                 node = node[part]
             except (AttributeError, KeyError) as exc:
                 raise PatchError(f"{_format_path(path)}: unknown field {part!r}") from exc
+                # @result
         elif isinstance(node, list):
             if isinstance(part, bool) or not isinstance(part, int):
                 raise PatchError(f"{_format_path(path)}: expected an index, got {part!r}")
@@ -256,12 +257,14 @@ def _get_path(doc: AttrsView, path: tuple[str | int, ...]) -> Any:
                 # @result
         else:
             raise PatchError(f"{_format_path(path)}: cannot descend into {type(node).__name__}")
+            # @result
     return node
 
 
 def _set_path(doc: AttrsView, path: tuple[str | int, ...], value: Any) -> None:
     if not path:
         raise PatchError("cannot replace the document root")
+        # @result
 
     owner: AttrsView | None = None
     field: str | None = None
@@ -361,10 +364,12 @@ def _decode_value(value: Any) -> Any:
             encoded = value[_BYTES_KEY]
             if not isinstance(encoded, str):
                 raise PatchError("encoded bytes value must be a base64 string")
+                # @result
             try:
                 return base64.b64decode(encoded, validate=True)
             except ValueError as exc:
                 raise PatchError(f"invalid base64 bytes value: {exc}") from exc
+                # @result
         return {key: _decode_value(item) for key, item in value.items()}
     if isinstance(value, list):
         return [_decode_value(item) for item in value]

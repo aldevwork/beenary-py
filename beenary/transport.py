@@ -11,6 +11,10 @@ Concrete transports:
     - :class:`FileTransport` — backed by a file handle (read or read/write).
     - :class:`MmapTransport` — memory-mapped file for large inputs.
     - :class:`MockTransport` — preload incoming bytes, inspect outgoing bytes.
+
+Stream adapters:
+    - :class:`BytesIOSource` / :class:`BytesIOSink` — ``io.BytesIO``.
+    - :class:`SocketStream` — a connected socket.
 """
 
 from __future__ import annotations
@@ -18,8 +22,10 @@ from __future__ import annotations
 import io
 import mmap
 import os
+import socket
 from abc import ABC, abstractmethod
-from typing import BinaryIO, cast
+from types import TracebackType
+from typing import BinaryIO, Protocol, cast
 
 from .errors import LensError
 
@@ -202,6 +208,75 @@ class BytesIOSink(StreamSink):
     def getvalue(self) -> bytes:
         """Return everything written so far."""
         return self._buf.getvalue()
+
+
+class SocketLike(Protocol):
+    """The slice of ``socket.socket`` that :class:`SocketStream` uses.
+
+    Typing the adapter against this protocol keeps it testable with any object
+    exposing ``recv``, ``sendall``, and ``close``.
+    """
+
+    def recv(self, bufsize: int) -> bytes:
+        """Receive up to ``bufsize`` bytes; return ``b""`` when the peer closes."""
+
+    def sendall(self, data: bytes) -> None:
+        """Send all of ``data``."""
+
+    def close(self) -> None:
+        """Close the connection."""
+
+
+class SocketStream(StreamSource, StreamSink):
+    """A connected socket exposed as a readable and writable byte stream.
+
+    ``recv`` may return fewer bytes than requested, so :meth:`read_stream`
+    loops until the full message is in hand. A closed socket is reported as
+    :class:`LensError`, the same way any other short read is.
+    """
+
+    def __init__(self, sock: SocketLike) -> None:
+        self._socket = sock
+
+    @classmethod
+    def connect(
+        cls, host: str, port: int, *, timeout: float | None = None
+    ) -> SocketStream:
+        """Connect a TCP socket and wrap it in a stream."""
+        return cls(socket.create_connection((host, port), timeout))
+
+    def read_stream(self, n: int) -> bytes:
+        if n < 0:
+            raise LensError(f"negative read length {n}") # @result
+        chunks: list[bytes] = []
+        remaining = n
+        while remaining:
+            chunk = self._socket.recv(remaining)
+            if not chunk:
+                raise LensError(
+                    f"socket closed: wanted {n} bytes, got {n - remaining}"
+                ) # @result
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        return b"".join(chunks)
+
+    def write_stream(self, data: bytes) -> None:
+        self._socket.sendall(data)
+
+    def close(self) -> None:
+        """Close the underlying socket."""
+        self._socket.close()
+
+    def __enter__(self) -> SocketStream:
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
+    ) -> None:
+        self.close()
 
 
 class MockTransport(Transport, StreamSource, StreamSink):

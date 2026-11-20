@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 from typing import Any, cast
 
+from beenary.dialogue import Dialogue
 from beenary.diff import FieldChange, Patch, apply_patch, diff, preview
 from beenary.errors import FormatError
 from beenary.formats import (
@@ -16,12 +17,14 @@ from beenary.formats import (
     sniff,
 )
 from beenary.lens import AttrsView, Struct, with_default
-from beenary.transport import FileTransport, MemoryTransport, Transport
+from beenary.transport import FileTransport, MemoryTransport, SocketStream, Transport
 
 __all__ = [
+    "Dialogue",
     "FieldChange",
     "FormatPlugin",
     "Patch",
+    "SocketStream",
     "apply_patch",
     "detect",
     "diff",

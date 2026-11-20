@@ -109,7 +109,7 @@ When asked to add a feature:
 - [ ] `AttrsView` with attribute + item access, write-through
 - [x] `diff` / `Patch` / `apply` / `preview` with JSON serialization
 - [x] `FormatPlugin` ABC + registry + `sniff()` + built-in `generic`, `png`, `toy`, `wav` plugins
-- [ ] `Dialogue` + `MockTransport` with preload/inspect
+- [x] `Dialogue` + `MockTransport` with preload/inspect
 - [ ] CLI: `beenary sniff|inspect|diff|patch`
 - [ ] Full test suite green, mypy --strict clean
 - [ ] README with demo GIF

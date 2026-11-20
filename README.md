@@ -10,7 +10,7 @@
 
 *Beenary reads and writes binary files through lenses. A lens turns bytes at an offset into a Python value and writes that value back. Schemas are ordinary Python objects, so there is no schema language, parser generator, or generated code.*
 
-*Version 0.1.0 includes lenses, transports, live struct views, saving, structural diff and patch, and format plugins. Protocol dialogues and the CLI are planned and not in this release. Their intended APIs are in [FUTURE.md](./FUTURE.md).*
+*Version 0.1.0 includes lenses, transports, live struct views, saving, structural diff and patch, format plugins, and protocol dialogues over streams and sockets. The CLI is planned and not in this release. Its intended API is in [FUTURE.md](./FUTURE.md).*
 
 ## Why another binary library?
 
@@ -233,6 +233,41 @@ A transport is a random-access byte buffer. Lenses only call `size`, `read`, and
 
 `open_file` uses `FileTransport`. For memory-mapped access, construct `MmapTransport` and call `Schema.read(transport, 0)` directly.
 
+## Protocol dialogues
+
+`Dialogue` sends and receives lens-defined messages over a stream. A stream is any `StreamSource` plus `StreamSink`, so the same code works with sockets, pipes, and `io.BytesIO`.
+
+```python
+from beenary import Dialogue
+from beenary.lens import Bytes, Struct, U16, U32
+from beenary.transport import MockTransport
+
+Request = Struct(op=U16(">"), payload=Bytes(8))
+Response = Struct(status=U16(">"), value=U32(">"))
+
+mock = MockTransport()
+mock.preload_incoming(b"\x00\xc8\x00\x00\x00\x2a")
+
+dialogue = Dialogue(mock)
+dialogue.send(Request, op=0x0001, payload=b"\x00" * 8)
+response = dialogue.receive(Response)  # status == 200, value == 42
+```
+
+`send` takes either a mapping or keyword fields. `receive` reads one message: it asks the schema for its size, so fixed-size schemas work as-is and data-dependent ones need `size=`. Messages are not length-prefixed — framing belongs to the protocol, and `size=` is where you apply it.
+
+`SocketStream` adapts a socket with the same interface. `SocketStream.connect(host, port)` opens a TCP connection, `SocketStream(sock)` wraps an existing one, and the object is a context manager that closes the socket:
+
+```python
+from beenary import Dialogue, SocketStream
+
+with SocketStream.connect("localhost", 9000) as stream:
+    dialogue = Dialogue(stream)
+    dialogue.send(Request, op=0x0001, payload=b"\x00" * 8)
+    response = dialogue.receive(Response)
+```
+
+A closed socket or an early end of stream raises `LensError`, like any other short read.
+
 ## Errors
 
 All library errors derive from `BeenaryError`. `LensError` carries a field path when one is known, so a failed read can report `header.version` or `items[3]`. Reads past the end of a transport raise `LensError` instead of returning short data.
@@ -251,7 +286,6 @@ CI runs the test suite on Python 3.11, 3.12, and 3.13, then runs `mypy` and `ruf
 
 These features are designed but not implemented in 0.1.0:
 
-- Protocol dialogues over streams and sockets
 - CLI commands for inspect, diff, and patch
 - NumPy views for large numeric arrays
 - A Textual-based inspector with live editing

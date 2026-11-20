@@ -93,8 +93,10 @@ def register_plugin(
     instance = plugin() if isinstance(plugin, type) else plugin
     if not isinstance(instance, FormatPlugin):
         raise TypeError("plugin must be a FormatPlugin instance or subclass")
+        # @result
     if not instance.name or not instance.schema_id:
         raise ValueError("plugin needs a non-empty name and schema_id")
+        # @result
     if instance.name in _registry and not replace:
         return _registry[instance.name]
     _registry[instance.name] = instance
@@ -108,6 +110,7 @@ def get_plugin(name: str) -> FormatPlugin:
         return _registry[name]
     except KeyError:
         raise KeyError(f"unknown format plugin {name!r}") from None
+        # @result
 
 
 def plugins() -> tuple[FormatPlugin, ...]:
@@ -447,5 +450,7 @@ class WavPlugin(FormatPlugin):
         raise FormatError("WAV file has no fmt chunk")
 
 
-for _plugin in (GenericPlugin, PngPlugin, ToyPlugin, WavPlugin):
+_plugins_list = (GenericPlugin, PngPlugin, ToyPlugin, WavPlugin)
+
+for _plugin in _plugins_list:
     register_plugin(_plugin)
